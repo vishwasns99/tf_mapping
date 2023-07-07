@@ -1,4 +1,4 @@
-#!/usr/bin/env python  
+#!/usr/bin/env python3
 import roslib
 roslib.load_manifest('tf_mapping')
 import rospy
@@ -14,6 +14,8 @@ if __name__ == '__main__':
     
     cam_pose_pub = rospy.Publisher('/cam_pose_in_world', PoseWithCovarianceStamped, queue_size=10)
     cam_pose_pub_rviz = rospy.Publisher('/cam_pose_in_world_rviz', PoseStamped, queue_size=10)
+    world_frame = "world"
+    camera_frame = "camera_link"
 
     listener = tf.TransformListener()
 
@@ -35,11 +37,11 @@ if __name__ == '__main__':
                     map_to_str      = "/id_"+str(id_number)+"_map" # e.g.: /id_1_map
                     camera_to_str   = "/"+element # e.g.:/marker_id1
 
-                    time_diff =  abs(  (listener.getLatestCommonTime(camera_to_str, '/usb_cam').to_sec()) - ((rospy.get_time()))  )
+                    time_diff =  abs(  (listener.getLatestCommonTime(camera_to_str, camera_frame).to_sec()) - ((rospy.get_time()))  )
                     if(time_diff<0.5): # in secs
                         #listener.waitForTransform(camera_to_str, "/usb_cam", rospy.Time().now(), rospy.Duration(4.0))
-                        (trans_id_word, rot_id_world) = listener.lookupTransform('/world', map_to_str, rospy.Time(0))
-                        (trans_id_camera, rot_id_camera) = listener.lookupTransform(camera_to_str, '/usb_cam', rospy.Time(0))
+                        (trans_id_word, rot_id_world) = listener.lookupTransform(world_frame, map_to_str, rospy.Time(0))
+                        (trans_id_camera, rot_id_camera) = listener.lookupTransform(camera_to_str, camera_frame, rospy.Time(0))
 
                         trans1_mat = tf.transformations.translation_matrix(trans_id_word)
                         rot1_mat   = tf.transformations.quaternion_matrix(rot_id_world)
@@ -58,18 +60,18 @@ if __name__ == '__main__':
                         rot3 = tf.transformations.quaternion_from_matrix(mat3) 
 
                         br = tf.TransformBroadcaster()
-                        br.sendTransform(trans3, rot3, rospy.Time.now(), "usb_cam_world_"+str(id_number), "world")
+                        br.sendTransform(trans3, rot3, rospy.Time.now(), "usb_cam_world_"+str(id_number), world_frame)
             if number_detected_marker_id>0:
                 trans_res[0] = sum_x/number_detected_marker_id
                 trans_res[1] = sum_y/number_detected_marker_id
                 trans_res[2] = sum_z/number_detected_marker_id
                 bb = tf.TransformBroadcaster()
-                bb.sendTransform(trans_res, rot3, rospy.Time.now(), "usb_cam_world", "world")
+                bb.sendTransform(trans_res, rot3, rospy.Time.now(), "usb_cam_world", world_frame)
 
 
                 pose_msg = PoseWithCovarianceStamped()
                 pose_msg.header.stamp = rospy.Time.now()
-                pose_msg.header.frame_id = "world"
+                pose_msg.header.frame_id = world_frame
                 pose_msg.pose.covariance = [0]*36
                 pose_msg.pose.pose.position.x  = trans_res[0]
                 pose_msg.pose.pose.position.y  = trans_res[1]
@@ -87,8 +89,8 @@ if __name__ == '__main__':
                 #print pose_rviz_msg
                 cam_pose_pub.publish(pose_msg)
                 cam_pose_pub_rviz.publish(pose_rviz_msg)
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            print "inside except"
+        except Exception as e:
+            print(e)
             continue
         rate.sleep()
         # else:

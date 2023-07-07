@@ -1,4 +1,4 @@
-#!/usr/bin/env python  
+#!/usr/bin/env python3
 
 # To use this program start it right after the tf_mapping node
 # make sure that the camera does not see a marker at the first image
@@ -20,8 +20,11 @@ marker_ids  = []
 center_x_px = []
 center_y_px = []
 bridge = CvBridge()
-
+width_ = None
+height_ = None
+cv_image = None
 def get_dis_to_closest_corner(center_x, center_y):
+    global width_, height_
     max_x = width_
     max_y = height_
     min_dis_x = center_x
@@ -39,10 +42,10 @@ def get_dis_to_closest_corner(center_x, center_y):
 
 def store_image(x, y, z, qx, qy, qz, qw, id):
     # use fields image, marker_ids
-    print "store id: "+str(id)
-    print marker_ids
+    print("store id: "+str(id))
+    print(marker_ids)
     j = -1
-    for i in xrange(0, len(marker_ids)):
+    for i in range(0, len(marker_ids)):
         if marker_ids[i] == id:
             j=i
             break
@@ -52,35 +55,36 @@ def store_image(x, y, z, qx, qy, qz, qw, id):
     center_y = center_y_px[j]
 
     dis = get_dis_to_closest_corner(center_x, center_y)
-    print "I saw id: "+str(id)+" with its center at: "+str(center_x)+", "+str(center_y)+" min dis: "+str(dis)
+    print("I saw id: "+str(id)+" with its center at: "+str(center_x)+", "+str(center_y)+" min dis: "+str(dis))
 
+    try:
+        roi = cv_image[abs(center_y-dis):abs(center_y+dis), abs(center_x-dis):abs(center_x+dis)]
+        # resize image to end with a zero!!! This is important for the tileloading
+        # Otherwise tiles are of wrong color and cutted wrong somehow
+        print(dis)
+        img_size_ = int( round(abs(dis/10))*10)
+        rest = img_size_%4
+        img_size_ = img_size_+rest
+        print(img_size_)
+        resized_image = cv2.resize(roi, (img_size_, img_size_))
+        rospack = rospkg.RosPack()
+        round_factor = 4
+        scale_factor = 1
+        x = round(x, round_factor)*scale_factor
+        y = round(y, round_factor)*scale_factor
+        z = round(z, round_factor)*scale_factor
+        qx = round(qx, 4)
+        qy = round(qy, 4)
+        qz = round(qz, 4)
+        qw = round(qw, 4)
+        img_name = str(x)+"_"+str(y)+"_"+str(z)+"_"+str(qx)+"_"+str(qy)+"_"+str(qz)+"_"+str(qw)+"_id:"+str(id)+".jpg"
+        path = rospack.get_path('rviz_pics')+"/map/"+img_name
+        cv2.imwrite(path, resized_image)
 
-    roi = cv_image[abs(center_y-dis):abs(center_y+dis), abs(center_x-dis):abs(center_x+dis)]
-    # resize image to end with a zero!!! This is important for the tileloading
-    # Otherwise tiles are of wrong color and cutted wrong somehow
-    print dis
-    img_size_ = int( round(abs(dis/10))*10)
-    rest = img_size_%4
-    img_size_ = img_size_+rest
-    print img_size_
-    resized_image = cv2.resize(roi, (img_size_, img_size_))
-    rospack = rospkg.RosPack()
-    round_factor = 4
-    scale_factor = 1
-    x = round(x, round_factor)*scale_factor
-    y = round(y, round_factor)*scale_factor
-    z = round(z, round_factor)*scale_factor
-    qx = round(qx, 4)
-    qy = round(qy, 4)
-    qz = round(qz, 4)
-    qw = round(qw, 4)
-    img_name = str(x)+"_"+str(y)+"_"+str(z)+"_"+str(qx)+"_"+str(qy)+"_"+str(qz)+"_"+str(qw)+"_id:"+str(id)+".jpg"
-    path = rospack.get_path('rviz_pics')+"/map/"+img_name
-    cv2.imwrite(path, resized_image)
-
-    print "I wrote the image at:"+path
-
-
+        print("I wrote the image at:"+path)
+    except Exception as e:
+        print("Exception: ", e)
+        return
 
 def img_cb(msg):
     global cv_image
@@ -99,13 +103,13 @@ def aruco_info_cb(msg):
     marker_ids = []
     center_x_px = []
     center_y_px = []
-    for i in xrange(0, len(msg.marker_ids)):
+    for i in range(0, len(msg.marker_ids)):
         marker_ids.append(msg.marker_ids[i])
     
-    for i in xrange(0, len(msg.center_x_px)):
+    for i in range(0, len(msg.center_x_px)):
         center_x_px.append(msg.center_x_px[i])
     
-    for i in xrange(0, len(msg.center_y_px)):
+    for i in range(0, len(msg.center_y_px)):
         center_y_px.append(msg.center_y_px[i])
 
 if __name__ == '__main__':
@@ -118,10 +122,10 @@ if __name__ == '__main__':
 
     # Subscriber
     rospy.Subscriber("/aruco_list", ArucoInfo, aruco_info_cb)
-    image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, img_cb)
+    image_sub = rospy.Subscriber("/oakd/camera/left/image_raw", Image, img_cb)
 
     printed_number = 2
-    max_number     = 6  # if this number is reached program is closed file is written.
+    max_number     = 25  # if this number is reached program is closed file is written.
     result_file ="<?xml version=\"1.0\"?> \n \n <launch> \n"
 
     while not rospy.is_shutdown():
@@ -141,7 +145,7 @@ if __name__ == '__main__':
                         (trans_p, rot_p) = listener.lookupTransform('/marker_globe_1', p, rospy.Time(0))
                         if trans_p[0] == trans[0]:
                             id_nr = p
-                            print "I detected this id: "+ id_nr+" for "+tf_to_str
+                            print("I detected this id: "+ id_nr+" for "+tf_to_str)
                 if(len(id_nr)>1):
                     str_output =  (str(trans[0])+", "+str(trans[1])+", "+str(trans[2])+",     "+str(rot[0])+", "+str(rot[1])+", "+str(rot[2])+", "+str(rot[3])+" ")
                     str_output = "<node name=\"initpos_to_globe_"+str(printed_number)+"_map_tf_pub\" pkg=\"tf\" type=\"static_transform_publisher\" args=\""+str_output+" /world  /"+id_nr+"_map 100 \"/>"
@@ -155,13 +159,13 @@ if __name__ == '__main__':
             rate.sleep()
         else:
             cv2.destroyAllWindows()
-            print "max number reached end!"
+            print("max number reached end!")
             result_file = result_file+"\n \n </launch>"
             rospack = rospkg.RosPack()
             path = rospack.get_path('tf_mapping')+"/launch/use_map.launch"
 
             f = open(path, "w")
             f.write(result_file)
-            print result_file
-            print "Finish file is written to: tf_mapping/launch/use_map.launch"
+            print(result_file)
+            print("Finish file is written to: tf_mapping/launch/use_map.launch")
             rospy.signal_shutdown("Finish file is written to: tf_mapping/launch/use_map.launch")
