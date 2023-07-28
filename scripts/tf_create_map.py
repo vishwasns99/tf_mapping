@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     printed_number = 2
     max_number     = 25  # if this number is reached program is closed file is written.
-    result_file ="<?xml version=\"1.0\"?> \n \n <launch> \n"
+    result_file ='<?xml version="1.0"?> \n \n <launch> \n <node name="initpos_to_globe_1_map_tf_pub" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 1  /world  /id_0_map 100 "/>'
 
     while not rospy.is_shutdown():
         tf_to_str = '/marker_globe_'+str(printed_number)
